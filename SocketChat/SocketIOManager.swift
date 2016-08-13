@@ -43,6 +43,7 @@ class SocketIOManager: NSObject {
             // When the user list is received from the server, we call our own method's completion handler passing as an argument that list. It is obvioulsy an array with dictionaries as objects, and that's why the conversion above is necessary to happen.
             // Important notice: The above socket.on(...) method will be invoked automatically by the Socket.IO every time that the server sends the user list. Simply put, the app will keep listenig for the "userList" message endlessly, and when such one arrives it will call our completion handler. Of course, all that activity stops when the app gets disconnected from the server.
         }
+        listenForOtherMessages()
     }
     // Our server immediately understands that it must delete the specified user when it recieves the "exitUser" message, and that's exactly what it does.
     func exitChatWithNickname(nickname: String, completionHandler: () -> Void) {
@@ -62,12 +63,28 @@ class SocketIOManager: NSObject {
             messageDictionary["date"] = dataArray[2] as! String
             // The dictionary is returned back to the caller of the method through the completion handler. Note once again that the on(...) method will be automatically invoked from now on everytime a new chat message is recieved.
             completionHandler(messageInfo: messageDictionary)
+        }
     }
+    // Being notified when users join and leave the chat.
+    private func listenForOtherMessages() {
+        socket.on("userConnectUpdate") { (dataArray, socketAck) -> Void in
+            NSNotificationCenter.defaultCenter().postNotificationName("userWasConnectedNotification", object: dataArray[0] as! [String: AnyObject])
+        }
         
+        socket.on("userExitUpdate") { (dataArray, socketAck) -> Void in
+            NSNotificationCenter.defaultCenter().postNotificationName("userWasDisconnectedNotification", object: dataArray[0] as! String)
+        }
+        socket.on("userTypingUpdate") { (dataArray, socketAck) -> Void in
+            NSNotificationCenter.defaultCenter().postNotificationName("userTyping Notification", object: dataArray[0] as? [String: AnyObject])
+        }
+    }
+    func sendStartTypingMessage(nickname: String) {
+        socket.emit("startType", nickname)
+    }
+    func sendStopTypingMessage(nickname: String) {
+        socket.emit("stopType", nickname)
+    }
     
     
     
-    
-    
-}
 }

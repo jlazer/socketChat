@@ -42,8 +42,12 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
         swipeGestureRecognizer.direction = UISwipeGestureRecognizerDirection.Down
         swipeGestureRecognizer.delegate = self
         view.addGestureRecognizer(swipeGestureRecognizer)
-    }
+        
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: "handlConnectedUserUpdateNotification:", name: "userWasConnectedNotification", object: nil)
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: "handleDisconnectedUserUpdateNotification", name: "userWasDisconnectedNotification", object: nil)
+        NSNotificationCenter.defaultCenter().addObserver(self, selector: "handleUserTypingNotification", name: "userTypingNotification", object: nil)
     
+    }
     
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
@@ -183,6 +187,7 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     func dismissKeyboard() {
         if tvMessageEditor.isFirstResponder() {
             tvMessageEditor.resignFirstResponder()
+            SocketIOManager.sharedInstance.sendStopTypingMessage(nickname)
         }
     }
     
@@ -228,6 +233,8 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     // MARK: UITextViewDelegate Methods
     
     func textViewShouldBeginEditing(textView: UITextView) -> Bool {
+        SocketIOManager.sharedInstance.sendStartTypingMessage(nickname)
+        
         return true
     }
     
@@ -236,6 +243,38 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     
     func gestureRecognizer(gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWithGestureRecognizer otherGestureRecognizer: UIGestureRecognizer) -> Bool {
         return true
+    }
+    func handleConnectedUserUpdateNotification(notification: NSNotification) {
+        let connectedUserInfo = notification.object as! [String: AnyObject]
+        let connectedUserNickname = connectedUserInfo["nickname"] as? String
+        lblNewsBanner.text = "User \(connectedUserNickname!.uppercaseString) was just connected."
+        showBannerLabelAnimated()
+    }
+    func handleDisconnectedUserUpdateNotification(notification:NSNotification) {
+        let disconnectedUserNickname = notification.object as! String
+        lblNewsBanner.text = "User \(disconnectedUserNickname.uppercaseString) has left."
+        showBannerLabelAnimated()
+    }
+    func handleUserTypingNotification(notification: NSNotification) {
+        if let typingUserDictionary = notification.object as? [String: AnyObject] {
+            var names = ""
+            var totalTypingUsers = 0
+            for (typingUser, _) in typingUserDictionary {
+                if typingUser != nickname {
+                    names = (names == "") ? typingUser : "\(names), \(typingUser)"
+                    totalTypingUsers += 1
+                }
+            }
+            if totalTypingUsers > 0 {
+                let verb = (totalTypingUsers == 1) ? "is" : "are"
+                lblOtherUserActivityStatus.text = "\(names) \(verb) now typing a message..."
+                lblOtherUserActivityStatus.hidden = false
+            }
+            else {
+                lblOtherUserActivityStatus.hidden = true
+            }
+        }
+        
     }
     
 }
