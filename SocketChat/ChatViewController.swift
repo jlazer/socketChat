@@ -9,7 +9,7 @@
 import UIKit
 
 class ChatViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, UITextViewDelegate, UIGestureRecognizerDelegate {
-
+    
     @IBOutlet weak var tblChat: UITableView!
     
     @IBOutlet weak var lblOtherUserActivityStatus: UILabel!
@@ -31,7 +31,7 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     
     override func viewDidLoad() {
         super.viewDidLoad()
-
+        
         // Do any additional setup after loading the view.
         
         NSNotificationCenter.defaultCenter().addObserver(self, selector: "handleKeyboardDidShowNotification:", name: UIKeyboardDidShowNotification, object: nil)
@@ -43,7 +43,7 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
         swipeGestureRecognizer.delegate = self
         view.addGestureRecognizer(swipeGestureRecognizer)
     }
-
+    
     
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
@@ -58,9 +58,16 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
-        
+        // Implementing the logic for receiving new messages.
+        SocketIOManager.sharedInstance.getChatMessage { (messageInfo) -> Void in dispatch_async(dispatch_get_main_queue(), {
+            () -> Void in
+            self.chatMessages.append(messageInfo)
+            self.tblChat.reloadData()
+            //  self.scrollToBottom
+        })
+        }
+        // With the above, the details of a new chat message will be appended to the chatMessages array as a dictionary, and the tableview will be reloaded so the new message to be displayed to the chat feed.
     }
-    
     
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
@@ -71,25 +78,29 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     deinit {
         NSNotificationCenter.defaultCenter().removeObserver(self)
     }
-
+    
     
     /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
-    }
-    */
-
+     // MARK: - Navigation
+     
+     // In a storyboard-based application, you will often want to do a little preparation before navigation
+     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
+     // Get the new view controller using segue.destinationViewController.
+     // Pass the selected object to the new view controller.
+     }
+     */
+    
     
     // MARK: IBAction Methods
-    
+    // Configuring the send button to check if there is text to send. Then it will send the message, clear the textview, and finally hide the keyboard.
     @IBAction func sendMessage(sender: AnyObject) {
-
+        if tvMessageEditor.text.characters.count > 0 {
+            SocketIOManager.sharedInstance.sendMessage(tvMessageEditor.text!, withNickname: nickname)
+            tvMessageEditor.text = ""
+            tvMessageEditor.resignFirstResponder()
+        }
     }
-
+    
     
     // MARK: Custom Methods
     
@@ -148,8 +159,8 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
         UIView.animateWithDuration(0.75, animations: { () -> Void in
             self.lblNewsBanner.alpha = 1.0
             
-            }) { (finished) -> Void in
-                self.bannerLabelTimer = NSTimer.scheduledTimerWithTimeInterval(2.0, target: self, selector: "hideBannerLabel", userInfo: nil, repeats: false)
+        }) { (finished) -> Void in
+            self.bannerLabelTimer = NSTimer.scheduledTimerWithTimeInterval(2.0, target: self, selector: "hideBannerLabel", userInfo: nil, repeats: false)
         }
     }
     
@@ -163,10 +174,10 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
         UIView.animateWithDuration(0.75, animations: { () -> Void in
             self.lblNewsBanner.alpha = 0.0
             
-            }) { (finished) -> Void in
+        }) { (finished) -> Void in
         }
     }
-
+    
     
     
     func dismissKeyboard() {
@@ -191,6 +202,24 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier("idCellChat", forIndexPath: indexPath) as! ChatCell
+        // Configuring the tableview so that the message thread is presented correctly.
+        let currentChatMessage = chatMessages[indexPath.row]
+        let senderNickname = currentChatMessage["nickname"] as! String
+        let message = currentChatMessage["message"] as! String
+        let messageDate = currentChatMessage["date"] as! String
+        
+        if senderNickname == nickname {
+            cell.lblChatMessage.textAlignment = NSTextAlignment.Right
+            cell.lblMessageDetails.textAlignment = NSTextAlignment.Right
+            
+            cell.lblChatMessage.textColor = lblNewsBanner.backgroundColor
+            
+        }
+        
+        cell.lblChatMessage.text = message
+        cell.lblMessageDetails.text = "by \(senderNickname.uppercaseString) @ \(messageDate)"
+        
+        cell.lblChatMessage.textColor = UIColor.darkGrayColor()
         
         return cell
     }
@@ -201,7 +230,7 @@ class ChatViewController: UIViewController, UITableViewDelegate, UITableViewData
     func textViewShouldBeginEditing(textView: UITextView) -> Bool {
         return true
     }
-
+    
     
     // MARK: UIGestureRecognizerDelegate Methods
     
